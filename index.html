@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rent Tracker</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --border: #dfe3e8;
+    --text: #1f2933;
+    --muted: #6b7785;
+    --accent: #2f6fed;
+    --paid: #1e9e5a;
+    --paid-bg: #e5f8ee;
+    --unpaid: #c0392b;
+    --unpaid-bg: #fdecea;
+    --head-bg: #eef1f5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); margin: 0 0 20px; font-size: 0.9rem; }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .toolbar input[type="text"], .toolbar select {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.9rem;
+  }
+  .toolbar select { min-width: 110px; }
+  .spacer { flex: 1; }
+  button {
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card);
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button:hover { filter: brightness(0.97); }
+
+  .summary {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    min-width: 120px;
+  }
+  .stat .num { font-size: 1.3rem; font-weight: 700; }
+  .stat .label { font-size: 0.78rem; color: var(--muted); }
+
+  .table-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 900px; }
+  th, td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.88rem;
+    white-space: nowrap;
+  }
+  th { background: var(--head-bg); font-weight: 600; position: sticky; top: 0; }
+  tr:last-child td { border-bottom: none; }
+  td input[type="text"], td input[type="date"], td input[type="tel"] {
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 0.88rem;
+    width: 100%;
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-family: inherit;
+    color: var(--text);
+  }
+  td input:hover, td input:focus {
+    border-color: var(--border);
+    background: #fafbfc;
+    outline: none;
+  }
+  .plot-cell input { width: 70px; }
+
+  .status-btn {
+    border: none;
+    border-radius: 14px;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .status-btn.paid { background: var(--paid-bg); color: var(--paid); }
+  .status-btn.unpaid { background: var(--unpaid-bg); color: var(--unpaid); }
+
+  .advance-check { transform: scale(1.15); cursor: pointer; }
+
+  .row-actions button {
+    padding: 4px 8px;
+    font-size: 0.78rem;
+  }
+
+  footer {
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181d;
+      --card: #1c2128;
+      --border: #2d333b;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --head-bg: #232933;
+      --paid-bg: #113827;
+      --unpaid-bg: #3a1c19;
+    }
+    td input:hover, td input:focus { background: #232933; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Rent Tracker</h1>
+<p class="subtitle">15 houses · monthly rent &amp; advance status</p>
+
+<div class="toolbar">
+  <input type="text" id="searchBox" placeholder="Search name / phone / plot...">
+  <select id="monthSelect"></select>
+  <div class="spacer"></div>
+  <button id="exportCsvBtn">Export CSV</button>
+  <button class="primary" id="markAllPaidBtn">Mark all paid (this month)</button>
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Tenant Name</th>
+      <th>Phone Number</th>
+      <th>Plot No.</th>
+      <th>Joining Date</th>
+      <th id="monthColHeader">Rent (this month)</th>
+      <th>Advance Paid</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+</div>
+
+<footer>Data is saved automatically in this browser (localStorage). Use Export CSV to back up.</footer>
+
+<script>
+(function () {
+  const STORAGE_KEY = "rentTrackerData_v1";
+  const HOUSE_COUNT = 15;
+
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  function defaultData() {
+    const houses = [];
+    for (let i = 1; i <= HOUSE_COUNT; i++) {
+      houses.push({
+        id: i,
+        name: "",
+        phone: "",
+        plot: String(i),
+        joinDate: "",
+        advancePaid: false,
+        payments: {} // key "YYYY-M" -> true/false
+      });
+    }
+    return { houses };
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return defaultData();
+      const parsed = JSON.parse(raw);
+      if (!parsed.houses || parsed.houses.length === 0) return defaultData();
+      return parsed;
+    } catch (e) {
+      return defaultData();
+    }
+  }
+
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  let state = load();
+
+  const now = new Date();
+  let selectedYear = now.getFullYear();
+  let selectedMonth = now.getMonth(); // 0-based
+
+  function monthKey(year, monthIdx) {
+    return year + "-" + monthIdx;
+  }
+
+  const monthSelect = document.getElementById("monthSelect");
+  function populateMonthSelect() {
+    monthSelect.innerHTML = "";
+    const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
+    years.forEach(y => {
+      monthNames.forEach((m, idx) => {
+        const opt = document.createElement("option");
+        opt.value = y + "-" + idx;
+        opt.textContent = m + " " + y;
+        if (y === selectedYear && idx === selectedMonth) opt.selected = true;
+        monthSelect.appendChild(opt);
+      });
+    });
+  }
+  monthSelect.addEventListener("change", () => {
+    const [y, m] = monthSelect.value.split("-").map(Number);
+    selectedYear = y;
+    selectedMonth = m;
+    render();
+  });
+
+  const tbody = document.getElementById("tbody");
+  const searchBox = document.getElementById("searchBox");
+  searchBox.addEventListener("input", render);
+
+  function field(house, key, value) {
+    house[key] = value;
+    save();
+    renderSummary();
+  }
+
+  function render() {
+    document.getElementById("monthColHeader").textContent =
+      "Rent (" + monthNames[selectedMonth] + " " + selectedYear + ")";
+
+    const query = searchBox.value.trim().toLowerCase();
+    tbody.innerHTML = "";
+
+    state.houses.forEach((house, idx) => {
+      if (query) {
+        const hay = (house.name + " " + house.phone + " " + house.plot).toLowerCase();
+        if (!hay.includes(query)) return;
+      }
+
+      const key = monthKey(selectedYear, selectedMonth);
+      const paid = !!house.payments[key];
+
+      const tr = document.createElement("tr");
+
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td><input type="text" data-field="name" placeholder="Tenant name" value="${escapeAttr(house.name)}"></td>
+        <td><input type="tel" data-field="phone" placeholder="Phone number" value="${escapeAttr(house.phone)}"></td>
+        <td class="plot-cell"><input type="text" data-field="plot" value="${escapeAttr(house.plot)}"></td>
+        <td><input type="date" data-field="joinDate" value="${escapeAttr(house.joinDate)}"></td>
+        <td><button class="status-btn ${paid ? 'paid' : 'unpaid'}" data-action="toggle-paid">${paid ? 'Paid' : 'Not Paid'}</button></td>
+        <td style="text-align:center"><input type="checkbox" class="advance-check" data-field="advancePaid" ${house.advancePaid ? "checked" : ""}></td>
+        <td class="row-actions"><button data-action="clear-month">Reset month</button></td>
+      `;
+
+      tr.querySelectorAll("input[data-field]").forEach(inp => {
+        inp.addEventListener("change", () => {
+          const f = inp.dataset.field;
+          if (f === "advancePaid") {
+            field(house, f, inp.checked);
+          } else {
+            field(house, f, inp.value);
+          }
+        });
+      });
+
+      tr.querySelector('[data-action="toggle-paid"]').addEventListener("click", () => {
+        house.payments[key] = !house.payments[key];
+        save();
+        render();
+      });
+
+      tr.querySelector('[data-action="clear-month"]').addEventListener("click", () => {
+        delete house.payments[key];
+        save();
+        render();
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    renderSummary();
+  }
+
+  function renderSummary() {
+    const key = monthKey(selectedYear, selectedMonth);
+    const total = state.houses.length;
+    const paidCount = state.houses.filter(h => h.payments[key]).length;
+    const advanceCount = state.houses.filter(h => h.advancePaid).length;
+    const summary = document.getElementById("summary");
+    summary.innerHTML = `
+      <div class="stat"><div class="num">${total}</div><div class="label">Total Houses</div></div>
+      <div class="stat"><div class="num">${paidCount}</div><div class="label">Paid (${monthNames[selectedMonth]} ${selectedYear})</div></div>
+      <div class="stat"><div class="num">${total - paidCount}</div><div class="label">Not Paid</div></div>
+      <div class="stat"><div class="num">${advanceCount}</div><div class="label">Advance Paid</div></div>
+    `;
+  }
+
+  function escapeAttr(v) {
+    return String(v || "").replace(/"/g, "&quot;");
+  }
+
+  document.getElementById("markAllPaidBtn").addEventListener("click", () => {
+    const key = monthKey(selectedYear, selectedMonth);
+    state.houses.forEach(h => h.payments[key] = true);
+    save();
+    render();
+  });
+
+  document.getElementById("exportCsvBtn").addEventListener("click", () => {
+    const key = monthKey(selectedYear, selectedMonth);
+    const rows = [["#","Name","Phone","Plot","Joining Date", monthNames[selectedMonth] + " " + selectedYear + " Paid","Advance Paid"]];
+    state.houses.forEach((h, idx) => {
+      rows.push([
+        idx + 1,
+        h.name,
+        h.phone,
+        h.plot,
+        h.joinDate,
+        h.payments[key] ? "Yes" : "No",
+        h.advancePaid ? "Yes" : "No"
+      ]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rent-tracker-${monthNames[selectedMonth]}-${selectedYear}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  populateMonthSelect();
+  render();
+})();
+</script>
+
+</body>
+</html>
