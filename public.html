@@ -138,24 +138,30 @@
   </table>
 </div>
 
-<footer>This page shows the current month's payment status only. No contact or amount details are shown here.</footer>
+<footer>This page shows the current month's payment status only, synced live from Firebase. No contact or amount details are shown here.</footer>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+import { firebaseConfig, firebaseAppName, RENT_TRACKER_PATH } from "./firebase-config.js";
+
 (function () {
-  const STORAGE_KEY = "rentTrackerData_v2";
+  const app = initializeApp(firebaseConfig, firebaseAppName);
+  const db = getDatabase(app);
+  const housesRef = ref(db, RENT_TRACKER_PATH);
 
-  function load() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { houses: [] };
-      const parsed = JSON.parse(raw);
-      return parsed.houses ? parsed : { houses: [] };
-    } catch (e) {
-      return { houses: [] };
-    }
-  }
+  let state = { houses: [] };
 
-  const state = load();
+  onValue(housesRef, snapshot => {
+    const data = snapshot.val() || {};
+    state = {
+      houses: Object.keys(data)
+        .map(id => ({ id, ...data[id] }))
+        .sort((a, b) => Number(a.id) - Number(b.id))
+    };
+    render();
+  });
+
   const now = new Date();
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const currentMonthKey = now.getFullYear() + "-" + now.getMonth();

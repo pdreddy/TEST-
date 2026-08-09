@@ -206,65 +206,58 @@
   </div>
 </div>
 
-<footer>Data is saved automatically in this browser (localStorage). Scroll the months panel horizontally &rarr; to see the full year. Use Export CSV to back up.</footer>
+<footer>Data syncs live via Firebase Realtime Database. Scroll the months panel horizontally &rarr; to see the full year. Use Export CSV to back up.</footer>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getDatabase, ref, onValue, update, set } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js";
+import { firebaseConfig, firebaseAppName, RENT_TRACKER_PATH } from "./firebase-config.js";
+
 (function () {
-  const STORAGE_KEY = "rentTrackerData_v2";
   const HOUSE_COUNT = 15;
+
+  const app = initializeApp(firebaseConfig, firebaseAppName);
+  const db = getDatabase(app);
+  const housesRef = ref(db, RENT_TRACKER_PATH);
 
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  function defaultData() {
+  function buildHouses(data) {
     const houses = [];
     for (let i = 1; i <= HOUSE_COUNT; i++) {
+      const d = (data && data[String(i)]) || {};
       houses.push({
         id: i,
-        name: "",
-        phone: "",
-        plot: String(i),
-        joinDate: "",
-        rentAmount: "",
-        advanceAmount: "",
-        payments: {} // key "YYYY-M" -> true/false
+        plot: d.plot !== undefined ? d.plot : String(i),
+        name: d.name || "",
+        phone: d.phone || "",
+        rentAmount: d.rentAmount !== undefined ? d.rentAmount : "",
+        advanceAmount: d.advanceAmount !== undefined ? d.advanceAmount : "",
+        payments: d.payments || {}
       });
     }
-    return { houses };
+    return houses;
   }
 
-  function migrate(parsed) {
-    parsed.houses.forEach(h => {
-      if (h.rentAmount === undefined) h.rentAmount = "";
-      if (h.advanceAmount === undefined) h.advanceAmount = h.advancePaid ? "" : "";
-      if (h.payments === undefined) h.payments = {};
-    });
-    return parsed;
-  }
-
-  function load() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.houses && parsed.houses.length) return migrate(parsed);
-      }
-      // try migrating from old v1 key
-      const oldRaw = localStorage.getItem("rentTrackerData_v1");
-      if (oldRaw) {
-        const old = JSON.parse(oldRaw);
-        if (old.houses && old.houses.length) return migrate(old);
-      }
-      return defaultData();
-    } catch (e) {
-      return defaultData();
+  function buildSeed() {
+    const obj = {};
+    for (let i = 1; i <= HOUSE_COUNT; i++) {
+      obj[i] = { plot: String(i), name: "", phone: "", rentAmount: "", advanceAmount: "", payments: {} };
     }
+    return obj;
   }
 
-  function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
+  let state = { houses: buildHouses(null) };
 
-  let state = load();
+  onValue(housesRef, snapshot => {
+    const data = snapshot.val();
+    if (data === null) {
+      set(housesRef, buildSeed());
+      return; // onValue will fire again once the seed is written
+    }
+    state = { houses: buildHouses(data) };
+    render();
+  });
 
   const now = new Date();
   const currentMonthKey = monthKey(now.getFullYear(), now.getMonth());
@@ -281,9 +274,11 @@
   searchBox.addEventListener("input", render);
 
   function field(house, key, value) {
-    house[key] = value;
-    save();
-    renderSummary();
+    update(ref(db, `${RENT_TRACKER_PATH}/${house.id}`), { [key]: value });
+  }
+
+  function togglePayment(house, key) {
+    update(ref(db, `${RENT_TRACKER_PATH}/${house.id}/payments`), { [key]: !house.payments[key] });
   }
 
   function matchesSearch(house, query) {
@@ -337,11 +332,7 @@
         const btn = document.createElement("button");
         btn.className = "status-btn " + (paid ? "paid" : "unpaid");
         btn.textContent = paid ? "Paid" : "Unpaid";
-        btn.addEventListener("click", () => {
-          house.payments[key] = !house.payments[key];
-          save();
-          render();
-        });
+        btn.addEventListener("click", () => togglePayment(house, key));
         td.appendChild(btn);
         monthTr.appendChild(td);
       });
@@ -380,9 +371,11 @@
   }
 
   document.getElementById("markAllPaidBtn").addEventListener("click", () => {
-    state.houses.forEach(h => h.payments[currentMonthKey] = true);
-    save();
-    render();
+    const updates = {};
+    state.houses.forEach(h => {
+      updates[`${RENT_TRACKER_PATH}/${h.id}/payments/${currentMonthKey}`] = true;
+    });
+    update(ref(db), updates);
   });
 
   document.getElementById("exportCsvBtn").addEventListener("click", () => {
