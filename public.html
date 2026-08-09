@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rent Status</title>
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --border: #dfe3e8;
+    --text: #1f2933;
+    --muted: #6b7785;
+    --paid: #1e9e5a;
+    --paid-bg: #e5f8ee;
+    --unpaid: #c0392b;
+    --unpaid-bg: #fdecea;
+    --head-bg: #eef1f5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); margin: 0 0 20px; font-size: 0.9rem; }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .toolbar input[type="text"] {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    flex: 1;
+    min-width: 180px;
+  }
+
+  .summary {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    min-width: 120px;
+  }
+  .stat .num { font-size: 1.3rem; font-weight: 700; }
+  .stat .label { font-size: 0.78rem; color: var(--muted); }
+
+  .table-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+  table { border-collapse: collapse; width: 100%; }
+  th, td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+  th { background: var(--head-bg); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+
+  .status-pill {
+    display: inline-block;
+    border-radius: 14px;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .status-pill.paid { background: var(--paid-bg); color: var(--paid); }
+  .status-pill.paid::before { content: "\25CF "; }
+  .status-pill.unpaid { background: var(--unpaid-bg); color: var(--unpaid); }
+  .status-pill.unpaid::before { content: "\25CF "; }
+
+  .empty {
+    padding: 24px;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  footer {
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 0.8rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14181d;
+      --card: #1c2128;
+      --border: #2d333b;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --head-bg: #232933;
+      --paid-bg: #113827;
+      --unpaid-bg: #3a1c19;
+    }
+  }
+</style>
+</head>
+<body>
+
+<h1>Rent Payment Status</h1>
+<p class="subtitle" id="monthLabel">Current month</p>
+
+<div class="toolbar">
+  <input type="text" id="searchBox" placeholder="Search by plot number or name...">
+</div>
+
+<div class="summary" id="summary"></div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Plot</th>
+        <th>Tenant</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<footer>This page shows the current month's payment status only. No contact or amount details are shown here.</footer>
+
+<script>
+(function () {
+  const STORAGE_KEY = "rentTrackerData_v2";
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { houses: [] };
+      const parsed = JSON.parse(raw);
+      return parsed.houses ? parsed : { houses: [] };
+    } catch (e) {
+      return { houses: [] };
+    }
+  }
+
+  const state = load();
+  const now = new Date();
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const currentMonthKey = now.getFullYear() + "-" + now.getMonth();
+
+  document.getElementById("monthLabel").textContent =
+    monthNames[now.getMonth()] + " " + now.getFullYear();
+
+  const tbody = document.getElementById("tbody");
+  const searchBox = document.getElementById("searchBox");
+  searchBox.addEventListener("input", render);
+
+  function render() {
+    const query = searchBox.value.trim().toLowerCase();
+    tbody.innerHTML = "";
+
+    const houses = state.houses.filter(h => (h.plot || h.name) &&
+      (!query || (h.plot + " " + h.name).toLowerCase().includes(query)));
+
+    if (houses.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="3" class="empty">No records found.</td></tr>`;
+    } else {
+      houses.forEach(h => {
+        const paid = !!h.payments && !!h.payments[currentMonthKey];
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${escapeHtml(h.plot)}</td>
+          <td>${escapeHtml(h.name) || "&mdash;"}</td>
+          <td><span class="status-pill ${paid ? 'paid' : 'unpaid'}">${paid ? 'Paid' : 'Unpaid'}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    renderSummary(houses);
+  }
+
+  function renderSummary(houses) {
+    const total = houses.length;
+    const paidCount = houses.filter(h => h.payments && h.payments[currentMonthKey]).length;
+    const summary = document.getElementById("summary");
+    summary.innerHTML = `
+      <div class="stat"><div class="num">${total}</div><div class="label">Total Houses</div></div>
+      <div class="stat"><div class="num">${paidCount}</div><div class="label">Paid</div></div>
+      <div class="stat"><div class="num">${total - paidCount}</div><div class="label">Not Paid</div></div>
+    `;
+  }
+
+  function escapeHtml(v) {
+    const div = document.createElement("div");
+    div.textContent = v === undefined || v === null ? "" : v;
+    return div.innerHTML;
+  }
+
+  render();
+})();
+</script>
+
+</body>
+</html>
