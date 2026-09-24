@@ -22,6 +22,49 @@ Open one of the examples in your browser:
 
 Stop the server with `Ctrl+C`.
 
+## Run and test in IntelliJ IDEA
+
+1. Install a JDK 17 (or newer) and IntelliJ IDEA. The Community edition is enough
+   because Spring support from IntelliJ is not required to run this Maven project.
+2. In IntelliJ, choose **File → Open**, select this project's `pom.xml`, and choose
+   **Open as Project**. If prompted, select **Trust Project**.
+3. Open **File → Project Structure → Project** and set **Project SDK** to JDK 17 or
+   newer. Keep the language level set to **SDK default**.
+4. Open the **Maven** tool window and click **Reload All Maven Projects**. Wait until
+   dependency indexing finishes.
+5. In the Maven tool window, expand **jsp-demo → Plugins → spring-boot** and run
+   **spring-boot:run**. Alternatively, open `JspDemoApplication.java` and click the
+   green Run button next to `main`.
+6. Wait for `Started JspDemoApplication` in the Run window, and then visit:
+   - Spring MVC/JSP: <http://localhost:8080/>
+   - Struts 2/JSP: <http://localhost:8080/struts/hello.action>
+7. Enter a name and submit the form on each page. A greeting confirms that the
+   request reached the controller/action and returned the JSP view.
+
+To run the automated tests, right-click `src/test/java` and choose **Run 'All Tests'**,
+or run the `test` goal from **Maven → jsp-demo → Lifecycle → test**. The same check is
+available in IntelliJ's terminal:
+
+```bash
+mvn test
+```
+
+For debugging, place a breakpoint in `HomeController.greet` or
+`StrutsHelloAction.execute`, start the app with **Debug** instead of **Run**, and submit
+the matching browser form.
+
+### IntelliJ troubleshooting
+
+- If imports stay red, confirm that Maven is not in offline mode and reload the Maven
+  project so it can download dependencies from Maven Central.
+- If port 8080 is already used, change `server.port` in
+  `src/main/resources/application.properties`, restart the app, and use that port in
+  the URLs above.
+- If a JSP change is not visible, stop and restart the application. JSP recompilation
+  behavior can differ between IntelliJ editions and run configurations.
+- Run only one application configuration at a time. A second instance cannot bind to
+  the same port.
+
 You can also create and run the executable WAR:
 
 ```bash
