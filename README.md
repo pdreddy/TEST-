@@ -18,6 +18,7 @@ mvn spring-boot:run
 Open one of the examples in your browser:
 
 - Spring MVC: <http://localhost:8080/>
+- Direct JSP example: <http://localhost:8080/hello.jsp>
 - Struts 2: <http://localhost:8080/struts/hello.action>
 
 Stop the server with `Ctrl+C`.
@@ -37,6 +38,7 @@ Stop the server with `Ctrl+C`.
    green Run button next to `main`.
 6. Wait for `Started JspDemoApplication` in the Run window, and then visit:
    - Spring MVC/JSP: <http://localhost:8080/>
+   - Direct JSP example: <http://localhost:8080/hello.jsp>
    - Struts 2/JSP: <http://localhost:8080/struts/hello.action>
 7. Enter a name and submit the form on each page. A greeting confirms that the
    request reached the controller/action and returned the JSP view.
@@ -75,6 +77,7 @@ java -jar target/jsp-demo.war
 ## Where to make changes
 
 - `HomeController.java` handles the `/` and `/greet` routes.
+- `JspPageController.java` maps simple URLs ending in `.jsp` to matching JSP views.
 - `src/main/webapp/WEB-INF/jsp/home.jsp` is the JSP view.
 - `StrutsHelloAction.java` handles the Struts `/struts/hello.action` route.
 - `src/main/resources/struts.xml` maps the Struts action to `struts-home.jsp`.
@@ -85,3 +88,19 @@ java -jar target/jsp-demo.war
 JSP files are deliberately stored under `WEB-INF`, so visitors cannot bypass the controller and request a view directly. Add another controller method and JSP file to create more pages.
 
 The two frameworks run side by side. Spring MVC owns the root routes, while the Struts filter is deliberately limited to `/struts/*` so it does not intercept them. Struts actions are created as prototype-scoped Spring beans, allowing normal Spring dependency injection without sharing request-specific action state.
+
+## Add another directly accessible JSP
+
+Create the file under `src/main/webapp/WEB-INF/jsp` and use a simple file name made
+from letters, numbers, hyphens, or underscores. The URL automatically uses the same
+file name; no new controller method is needed:
+
+| JSP file | Local URL |
+| --- | --- |
+| `WEB-INF/jsp/hello.jsp` | <http://localhost:8080/hello.jsp> |
+| `WEB-INF/jsp/test.jsp` | <http://localhost:8080/test.jsp> |
+| `WEB-INF/jsp/my-page.jsp` | <http://localhost:8080/my-page.jsp> |
+
+After adding a JSP, restart the application if IntelliJ does not copy the new file
+while the server is running. Keep JSP files under `WEB-INF/jsp`; the controller exposes
+only a single safe file-name segment and does not allow directory traversal.

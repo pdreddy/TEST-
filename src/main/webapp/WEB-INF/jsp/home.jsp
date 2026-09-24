@@ -31,6 +31,7 @@
     <p class="greeting" ${empty name ? 'hidden' : ''}>Hello, <strong>${name}</strong>!</p>
 
     <p class="hint">Edit <code>src/main/webapp/WEB-INF/jsp/home.jsp</code> to try your own JSP code.</p>
+    <p class="hint"><a href="${pageContext.request.contextPath}/hello.jsp">Open the direct hello.jsp example</a></p>
     <p class="hint"><a href="${pageContext.request.contextPath}/struts/hello.action">Open the Struts 2 example</a></p>
 </main>
 </body>
