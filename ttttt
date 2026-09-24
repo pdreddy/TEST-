@@ -17,3 +17,28 @@ source ~/.bashrc
 For your Spring Boot 4 migration, the key check is:
 
 mvn -version
+First find exactly where Maven stored the UEF JAR:
+
+mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout
+
+Then locate it. In Git Bash, try:
+
+find ~/.m2/repository/gov/ssa/common/uef/2.0.28 -type f
+
+You should see something like:
+
+uef-2.0.28.jar
+uef-2.0.28.pom
+
+Then inspect the JAR without filtering:
+
+jar tf ~/.m2/repository/gov/ssa/common/uef/2.0.28/uef-2.0.28.jar | head -100
+
+And specifically check initialization-related files:
+
+jar tf ~/.m2/repository/gov/ssa/common/uef/2.0.28/uef-2.0.28.jar \
+  | grep -Ei "META-INF|web-fragment|tld|filter|listener|servlet|services"
+
+Also run:
+
+mvn dependency:tree -Dincludes=gov.ssa.common:uef
